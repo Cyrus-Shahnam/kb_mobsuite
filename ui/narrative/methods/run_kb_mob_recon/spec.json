@@ -12,7 +12,7 @@
       "allow_multiple": false,
       "is_workspace_id": true,
       "field_type": "text",
-      "text_options": { "valid_ws_types": ["KBaseAssembly.Assembly"] }
+      "text_options": { "valid_ws_types": ["KBaseAssembly.Assembly", "KBaseGenomeAnnotations.Assembly"] }
     },
     {
       "id": "sample_id",
