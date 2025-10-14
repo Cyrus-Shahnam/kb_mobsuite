@@ -7,15 +7,9 @@ SHELL ["/bin/bash", "-lc"]
 ENV CONDA_DIR=/opt/conda
 ENV PATH=${CONDA_DIR}/bin:$PATH
 RUN if ! command -v conda >/dev/null 2>&1; then \
-      python - <<'PY'
-import urllib.request as u
-u.urlretrieve(
-  "https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-Linux-x86_64.sh",
-  "/tmp/mambaforge.sh"
-)
-PY
-      && bash /tmp/mambaforge.sh -b -p "${CONDA_DIR}" \
-      && rm -f /tmp/mambaforge.sh; \
+      python -c "import urllib.request as u; u.urlretrieve('https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-Linux-x86_64.sh','/tmp/mambaforge.sh')" && \
+      bash /tmp/mambaforge.sh -b -p "${CONDA_DIR}" && \
+      rm -f /tmp/mambaforge.sh; \
     fi
 
 # Channels and fast solver
