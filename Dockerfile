@@ -1,28 +1,32 @@
 FROM kbase/sdkpython:3.8.10
 LABEL maintainer="ac.shahnam"
 
-# Use bash for RUN steps
 SHELL ["/bin/bash", "-lc"]
 
-# --- Conda bootstrap (install if missing; no apt) ---
+# --- Conda bootstrap (sdkpython already has conda, but keep this guard) ---
 ENV CONDA_DIR=/opt/conda
 ENV PATH=${CONDA_DIR}/bin:$PATH
 RUN if ! command -v conda >/dev/null 2>&1; then \
-      python -c "import urllib.request as u; u.urlretrieve('https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-Linux-x86_64.sh','/tmp/mambaforge.sh')"; \
-      bash /tmp/mambaforge.sh -b -p ${CONDA_DIR}; \
-      rm -f /tmp/mambaforge.sh; \
+      python - <<'PY'
+import urllib.request as u
+u.urlretrieve(
+  "https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-Linux-x86_64.sh",
+  "/tmp/mambaforge.sh"
+)
+PY
+      && bash /tmp/mambaforge.sh -b -p "${CONDA_DIR}" \
+      && rm -f /tmp/mambaforge.sh; \
     fi
 
-# Channels + install mamba (tiny solve), then use mamba for everything else (fast)
+# Channels and fast solver
 RUN conda config --add channels conda-forge \
  && conda config --add channels bioconda \
  && conda config --set channel_priority flexible \
  && conda install -y -c conda-forge 'mamba>=1.5' \
  && conda clean --all -y
 
-# Core tools (minimal pins to avoid backtracking); mamba = fast solver
+# Core tools (single transaction keeps it consistent)
 RUN mamba install -y -c conda-forge -c bioconda \
-      python=3.8 \
       mob_suite=3.1.9 \
       'blast>=2.13' \
       'mash>=2.3' \
@@ -31,19 +35,14 @@ RUN mamba install -y -c conda-forge -c bioconda \
       bzip2 \
       pigz \
       procps-ng \
-  && mamba clean -a -y
-
-# (Optional) If you need pandas/biopython explicitly for your HTML rendering,
-# pull them *after* the core solve to reduce conflicts:
-RUN mamba install -y -c conda-forge -c bioconda \
       pandas \
       biopython \
   && mamba clean -a -y
 
-# Fixed (optional) DB location for MOB-suite
+# Fixed DB location (empty at build time; populate at runtime if needed)
 ENV MOB_DB_DIR=/opt/mob_db
 RUN mkdir -p "${MOB_DB_DIR}"
- 
+
 # KBase module payload
 WORKDIR /kb/module
 COPY . /kb/module
@@ -52,14 +51,10 @@ COPY . /kb/module
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-COPY ./ /kb/module
-RUN mkdir -p /kb/module/work
-RUN chmod -R a+rw /kb/module
+# Make sure files and entrypoint are usable
+RUN mkdir -p /kb/module/work \
+ && chmod -R a+rw /kb/module \
+ && if [ -f /kb/module/scripts/entrypoint.sh ]; then chmod +x /kb/module/scripts/entrypoint.sh; fi
 
-WORKDIR /kb/module
-
-RUN make all
-
-ENTRYPOINT [ "./scripts/entrypoint.sh" ]
-
-CMD [ ]
+ENTRYPOINT ["/kb/module/scripts/entrypoint.sh"]
+CMD []
