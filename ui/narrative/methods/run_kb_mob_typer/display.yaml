@@ -1,0 +1,24 @@
+name: MOB-typer (MOB-suite)
+tooltip: Type plasmids (replicon/relaxase/MPF/mobility) from an Assembly FASTA.
+screenshots: []
+icon: plasmid
+parameters:
+  fasta_ref:
+    ui-name: FASTA Assembly
+    short-hint: Assembly to type (KBaseAssembly.Assembly).
+  sample_id:
+    ui-name: Sample ID (optional)
+    short-hint: Label used for files/reports.
+  multi:
+    ui-name: Multi-plasmid mode
+    short-hint: Treat input as multiple plasmids (--multi).
+  threads:
+    ui-name: Threads
+    short-hint: CPU threads to use.
+  emit_mge_report:
+    ui-name: Emit MGE report
+    short-hint: Also write mge.report.txt (--mge_report_file).
+description: |
+  MOB-typer predicts replicon family, relaxase class, MPF type, and plasmid mobility
+  from nucleotide FASTA assemblies. Optionally enable multi-plasmid mode and an
+  MGE report.

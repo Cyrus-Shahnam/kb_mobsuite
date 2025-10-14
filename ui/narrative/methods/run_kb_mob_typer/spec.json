@@ -1,0 +1,86 @@
+{
+  "ver": "1.1",
+  "authors": ["ac.shahnam"],
+  "contact": "you@example.com",
+  "categories": ["active"],
+  "widgets": {
+    "input": null,
+    "output": null
+  },
+  "parameters": [
+    {
+      "id": "fasta_ref",
+      "optional": false,
+      "advanced": false,
+      "allow_multiple": false,
+      "default_values": [""],
+      "field_type": "text",
+      "text_options": {
+        "valid_ws_types": ["KBaseAssembly.Assembly"]
+      }
+    },
+    {
+      "id": "sample_id",
+      "optional": true,
+      "advanced": false,
+      "allow_multiple": false,
+      "default_values": [""],
+      "field_type": "text",
+      "text_options": { "validate_as": "string" }
+    },
+    {
+      "id": "multi",
+      "optional": true,
+      "advanced": false,
+      "allow_multiple": false,
+      "default_values": ["0"],
+      "field_type": "checkbox",
+      "checkbox_options": {
+        "checked_value": "1",
+        "unchecked_value": "0"
+      }
+    },
+    {
+      "id": "threads",
+      "optional": true,
+      "advanced": true,
+      "allow_multiple": false,
+      "default_values": ["4"],
+      "field_type": "text",
+      "text_options": {
+        "validate_as": "int",
+        "min_int": 1,
+        "max_int": 128
+      }
+    },
+    {
+      "id": "emit_mge_report",
+      "optional": true,
+      "advanced": true,
+      "allow_multiple": false,
+      "default_values": ["0"],
+      "field_type": "checkbox",
+      "checkbox_options": {
+        "checked_value": "1",
+        "unchecked_value": "0"
+      }
+    }
+  ],
+  "behavior": {
+    "service-mapping": {
+      "url": "",
+      "name": "kb_mobsuite",
+      "method": "run_mob_typer_app",
+      "input_mapping": [
+        { "narrative_system_variable": "workspace", "target_property": "workspace_name", "target_argument_position": 0 },
+        { "input_parameter": "fasta_ref", "target_property": "fasta_ref", "target_argument_position": 0, "target_type_transform": "ref" },
+        { "input_parameter": "sample_id", "target_property": "sample_id", "target_argument_position": 0 },
+        { "input_parameter": "multi", "target_property": "multi", "target_argument_position": 0, "target_type_transform": "int" },
+        { "input_parameter": "threads", "target_property": "threads", "target_argument_position": 0, "target_type_transform": "int" },
+        { "input_parameter": "emit_mge_report", "target_property": "emit_mge_report", "target_argument_position": 0, "target_type_transform": "int" }
+      ],
+      "output_mapping": []
+    }
+  },
+  "job_id_output_field": "docker"
+}

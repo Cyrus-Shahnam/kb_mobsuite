@@ -1,0 +1,28 @@
+name: MOB-recon (MOB-suite)
+tooltip: Reconstruct plasmids from assemblies; optionally save plasmid-only Assembly.
+screenshots: []
+icon: plasmid
+parameters:
+  assembly_ref:
+    ui-name: Input Assembly
+    short-hint: KBaseAssembly.Assembly to analyze.
+  sample_id:
+    ui-name: Sample ID (optional)
+    short-hint: Label used for files and objects.
+  user_filter_fasta_ref:
+    ui-name: Filter FASTA (optional)
+    short-hint: Sequences to ignore during reconstruction (--filter_db).
+  closed_genomes_fasta_ref:
+    ui-name: Closed genomes FASTA (optional)
+    short-hint: Chromosome depletion reference (-g).
+  threads:
+    ui-name: Threads
+    short-hint: CPU threads to use.
+  emit_plasmid_assembly:
+    ui-name: Save plasmid-only Assembly
+    short-hint: Save merged plasmid contigs as new Assembly.
+description: |
+  MOB-recon reconstructs plasmids from an assembly and produces a contig report
+  and per-sample outputs. Optionally provide a mask FASTA (--filter_db) and a closed
+  genomes FASTA (-g). You may also save the merged plasmid contigs as a new
+  KBase Assembly object.

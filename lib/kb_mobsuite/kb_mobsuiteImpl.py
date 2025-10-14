@@ -1,0 +1,518 @@
+# -*- coding: utf-8 -*-
+#BEGIN_HEADER
+import os
+import shutil
+import subprocess
+import glob
+import pandas as pd
+
+from installed_clients.AssemblyUtilClient import AssemblyUtil
+from installed_clients.DataFileUtilClient import DataFileUtil
+from installed_clients.KBaseReportClient import KBaseReport
+from installed_clients.WorkspaceClient import Workspace
+#END_HEADER
+
+
+class kb_mobsuite:
+    def __init__(self, config):
+        #BEGIN_CONSTRUCTOR
+        self.callback_url = os.environ.get('SDK_CALLBACK_URL')
+        self.scratch = os.path.abspath(config['scratch'])
+        self.ws_url = config['workspace-url']
+        self.ws = Workspace(self.ws_url)
+        self.au = AssemblyUtil(self.callback_url)
+        self.dfu = DataFileUtil(self.callback_url)
+        self.kbr = KBaseReport(self.callback_url)
+        # Optional pre-baked database location (no download toggles here)
+        self.mob_db_dir = os.environ.get('MOB_DB_DIR')
+        #END_CONSTRUCTOR
+        pass
+
+    def _log(self, msg):
+        print(f"[kb_mobsuite] {msg}")
+
+    # ---------------- internal helpers ----------------
+    def _run_mob_recon_once(self, wsname, asm_ref, sample_id,
+                             user_filter_fasta_ref=None,
+                             closed_genomes_fasta_ref=None,
+                             threads=4,
+                             emit_plasmid_assembly=True):
+        """
+        Execute mob_recon for a single assembly.
+        Returns a dict with keys:
+         - sample_id, out_dir, zip_path, contig_report, asm_out_name (maybe None), plasmid_assembly_ref (maybe None)
+        """
+        job_dir = os.path.join(self.scratch, f"mob_recon_{sample_id}")
+        out_dir = os.path.join(job_dir, "mob_recon_output")
+        os.makedirs(out_dir, exist_ok=True)
+
+        # 1) Download input assembly to FASTA
+        asm_fasta = self.au.get_assembly_as_fasta({'ref': asm_ref})['path']
+
+        # Optional: user filter and closed genomes (Assembly objects)
+        user_filter = None
+        if user_filter_fasta_ref:
+            user_filter = self.au.get_assembly_as_fasta({'ref': user_filter_fasta_ref})['path']
+
+        closed_genomes = None
+        if closed_genomes_fasta_ref:
+            closed_genomes = self.au.get_assembly_as_fasta({'ref': closed_genomes_fasta_ref})['path']
+
+        # 2) Compose command
+        cmd = [
+            "mob_recon",
+            "--infile", asm_fasta,
+            "--outdir", out_dir
+        ]
+        if user_filter:
+            cmd += ["--filter_db", user_filter]
+        if closed_genomes:
+            cmd += ["-g", closed_genomes]
+
+        env = os.environ.copy()
+        env["OMP_NUM_THREADS"] = str(int(threads))
+        if self.mob_db_dir and os.path.isdir(self.mob_db_dir):
+            env["MOB_SUITE_DB"] = self.mob_db_dir
+
+        self._log("Running: " + " ".join(cmd))
+        rc = subprocess.call(cmd, env=env)
+        if rc != 0:
+            raise RuntimeError(f"mob_recon failed with exit code {rc}")
+
+        # 3) Merge plasmid_*.fasta → <sample>.plasmids.fasta if present
+        plasmid_fastas = sorted(glob.glob(os.path.join(out_dir, "plasmid_*.fasta")))
+        merged_plasmids = None
+        if plasmid_fastas:
+            merged_plasmids = os.path.join(out_dir, f"{sample_id}.plasmids.fasta")
+            with open(merged_plasmids, "wb") as w:
+                for pf in plasmid_fastas:
+                    with open(pf, "rb") as r:
+                        shutil.copyfileobj(r, w)
+
+        # 4) Save outputs (Assembly optional) + zip path
+        obj_ref = None
+        asm_out_name = None
+        if emit_plasmid_assembly and merged_plasmids and os.path.getsize(merged_plasmids) > 0:
+            asm_out_name = f"{sample_id}.MOBrecon.plasmids"
+            aret = self.au.save_assembly_from_fasta({
+                'file': {'path': merged_plasmids},
+                'workspace_name': wsname,
+                'assembly_name': asm_out_name
+            })
+            obj_ref = aret['assembly_ref']
+
+        zip_path = os.path.join(self.scratch, f"{sample_id}.mob_recon_outputs.zip")
+        shutil.make_archive(zip_path[:-4], "zip", out_dir)
+
+        contig_report = os.path.join(out_dir, "contig_report.txt")
+        return {
+            "sample_id": sample_id,
+            "out_dir": out_dir,
+            "zip_path": zip_path,
+            "contig_report": contig_report if os.path.exists(contig_report) else None,
+            "asm_out_name": asm_out_name,
+            "plasmid_assembly_ref": obj_ref
+        }
+
+    def _render_html_summary(self, out_dir, html_path, sample_id, asm_out_name):
+        contig_report = os.path.join(out_dir, "contig_report.txt")
+        table_html = ""
+        if os.path.exists(contig_report):
+            try:
+                df = pd.read_csv(contig_report, sep='\t')
+                cols = [c for c in df.columns if c in [
+                    "molecule_type","primary_cluster_id","size","gc","circularity_status",
+                    "rep_type(s)","relaxase_type(s)","mpf_type","predicted_mobility","mash_neighbor_identification"
+                ]]
+                table_html = (df[cols] if cols else df).to_html(index=False, escape=False)
+            except Exception:
+                table_html = "<p>Could not parse contig_report.txt.</p>"
+        else:
+            table_html = "<p>No contig_report.txt found.</p>"
+
+        with open(html_path, "w") as w:
+            w.write(f"""
+<html><head><meta charset="utf-8"><title>MOB-recon: {sample_id}</title></head>
+<body>
+<h2>MOB-recon results — {sample_id}</h2>
+<p>Plasmid Assembly saved: <b>{asm_out_name or "—"}</b></p>
+<h3>Contig report</h3>
+{table_html}
+<p><i>Generated by MOB-suite.</i></p>
+</body></html>
+""")
+
+    def _render_typer_html(self, results_txt, html_path, sample_id):
+        table_html = ""
+        if os.path.exists(results_txt):
+            try:
+                df = pd.read_csv(results_txt, sep='\t', engine="python")
+                cols = [c for c in df.columns if c in [
+                    "rep_type(s)", "relaxase_type(s)", "mpf_type",
+                    "predicted_mobility", "primary_cluster_id",
+                    "secondary_cluster_id", "mash_neighbor_identification"
+                ]]
+                table_html = (df[cols] if cols else df).to_html(index=False, escape=False)
+            except Exception:
+                table_html = "<p>Could not parse mobtyper results.</p>"
+        else:
+            table_html = "<p>No mobtyper results file found.</p>"
+
+        with open(html_path, "w") as w:
+            w.write(f"""
+<html><head><meta charset="utf-8"><title>MOB-typer: {sample_id}</title></head>
+<body>
+<h2>MOB-typer results — {sample_id}</h2>
+{table_html}
+<p><i>Generated by MOB-suite.</i></p>
+</body></html>
+""")
+
+    def _render_batch_html(self, combined_tsv, per_sample_rows, html_path):
+        # per_sample_rows: list of dicts with keys: sample_id, asm_out_name (maybe None), zip_name
+        table_html = ""
+        if combined_tsv and os.path.exists(combined_tsv):
+            try:
+                df = pd.read_csv(combined_tsv, sep='\t', nrows=2000)  # cap preview for UI
+                table_html = df.head(50).to_html(index=False, escape=False)
+            except Exception:
+                table_html = "<p>Could not parse combined contig report.</p>"
+        else:
+            table_html = "<p>No combined contig report found.</p>"
+
+        rows = "".join(
+            f"<tr><td>{r['sample_id']}</td><td>{r.get('asm_out_name','—') or '—'}</td><td>{r['zip_name']}</td></tr>"
+            for r in per_sample_rows
+        )
+        summary_table = f"""
+<table border="1" cellspacing="0" cellpadding="4">
+<thead><tr><th>Sample</th><th>Plasmid Assembly</th><th>Outputs Zip</th></tr></thead>
+<tbody>{rows}</tbody></table>"""
+
+        with open(html_path, "w") as w:
+            w.write(f"""
+<html><head><meta charset="utf-8"><title>MOB-recon (Batch)</title></head>
+<body>
+<h2>MOB-recon (Batch) — Summary</h2>
+{summary_table}
+<h3>Combined contig report (preview)</h3>
+{table_html}
+<p><i>Generated by MOB-suite.</i></p>
+</body></html>
+""")
+
+    # ---------------- app methods ----------------
+    # Single-run (refactored to use helper)
+    def run_mob_recon_app(self, ctx, params):
+        wsname = params['workspace_name']
+        asm_ref = params['assembly_ref']
+        sample_id = params.get('sample_id') or 'sample'
+        threads = int(params.get('threads') or 4)
+        emit_plasmid_assembly = str(params.get('emit_plasmid_assembly', '1')) == '1'
+        ufilter = params.get('user_filter_fasta_ref')
+        cgenomes = params.get('closed_genomes_fasta_ref')
+
+        res = self._run_mob_recon_once(
+            wsname, asm_ref, sample_id,
+            user_filter_fasta_ref=ufilter,
+            closed_genomes_fasta_ref=cgenomes,
+            threads=threads,
+            emit_plasmid_assembly=emit_plasmid_assembly
+        )
+
+        # Single-run HTML
+        html_dir = os.path.join(self.scratch, f"mob_recon_{sample_id}", "html")
+        os.makedirs(html_dir, exist_ok=True)
+        html_path = os.path.join(html_dir, "index.html")
+        self._render_html_summary(
+            os.path.join(self.scratch, f"mob_recon_{sample_id}", "mob_recon_output"),
+            html_path, sample_id, res['asm_out_name']
+        )
+
+        rep = self.kbr.create_extended_report({
+            "message": f"MOB-recon finished for {sample_id}.",
+            "direct_html_link_index": 0,
+            "html_links": [{"path": html_path, "name": "index.html", "label": "MOB-recon summary"}],
+            "file_links": [{"path": res['zip_path'], "name": os.path.basename(res['zip_path']), "label": "All outputs (.zip)"}],
+            "objects_created": (
+                [{"ref": res['plasmid_assembly_ref'], "description": "Plasmid-only Assembly"}]
+                if res['plasmid_assembly_ref'] else []
+            ),
+            "workspace_name": wsname
+        })
+
+        return [{
+            "report_name": rep['name'],
+            "report_ref": rep['ref'],
+            "plasmid_assembly_ref": res['plasmid_assembly_ref']
+        }]
+
+    def run_mob_typer_app(self, ctx, params):
+        wsname = params['workspace_name']
+        fasta_ref = params['fasta_ref']
+        sample_id = params.get('sample_id') or 'sample'
+        threads = int(params.get('threads') or 4)
+        multi = str(params.get('multi', '0')) == '1'
+        emit_mge_report = str(params.get('emit_mge_report', '0')) == '1'
+
+        job_dir = os.path.join(self.scratch, f"mob_typer_{sample_id}")
+        out_dir = os.path.join(job_dir, "mob_typer_output")
+        os.makedirs(out_dir, exist_ok=True)
+
+        fasta = self.au.get_assembly_as_fasta({'ref': fasta_ref})['path']
+        results_txt = os.path.join(out_dir, f"{sample_id}_mobtyper_results.txt")
+
+        cmd = [
+            "mob_typer",
+            "--infile", fasta,
+            "--out_file", results_txt,
+            "--num_threads", str(threads)
+        ]
+        if multi:
+            cmd.append("--multi")
+        if emit_mge_report:
+            cmd += ["--mge_report_file", os.path.join(out_dir, "mge.report.txt")]
+
+        env = os.environ.copy()
+        env["OMP_NUM_THREADS"] = str(threads)
+        if self.mob_db_dir and os.path.isdir(self.mob_db_dir):
+            env["MOB_SUITE_DB"] = self.mob_db_dir
+
+        self._log("Running: " + " ".join(cmd))
+        rc = subprocess.call(cmd, env=env)
+        if rc != 0:
+            raise RuntimeError(f"mob_typer failed with exit code {rc}")
+
+        zip_path = os.path.join(self.scratch, f"{sample_id}.mob_typer_outputs.zip")
+        shutil.make_archive(zip_path[:-4], "zip", out_dir)
+
+        html_dir = os.path.join(job_dir, "html")
+        os.makedirs(html_dir, exist_ok=True)
+        html_path = os.path.join(html_dir, "index.html")
+        self._render_typer_html(results_txt, html_path, sample_id)
+
+        rep = self.kbr.create_extended_report({
+            "message": f"MOB-typer finished for {sample_id}.",
+            "direct_html_link_index": 0,
+            "html_links": [{"path": html_path, "name": "index.html", "label": "MOB-typer summary"}],
+            "file_links": [{"path": zip_path, "name": os.path.basename(zip_path), "label": "All outputs (.zip)"}],
+            "workspace_name": wsname
+        })
+
+        return [{
+            "report_name": rep['name'],
+            "report_ref": rep['ref']
+        }]
+
+    def run_mob_cluster_app(self, ctx, params):
+        wsname = params['workspace_name']
+        mode = params['mode'].lower().strip()
+        if mode not in ("build", "update"):
+            raise ValueError("mode must be 'build' or 'update'")
+
+        sample_id = params.get('sample_id') or 'dataset'
+        job_dir = os.path.join(self.scratch, f"mob_cluster_{sample_id}")
+        out_dir = os.path.join(job_dir, "mob_cluster_output")
+        os.makedirs(out_dir, exist_ok=True)
+
+        plasmids_fa = self.au.get_assembly_as_fasta({'ref': params['plasmids_assembly_ref']})['path']
+
+        mobtyper_report = self.dfu.download_staging_file({
+            'staging_file_subdir_path': params['mobtyper_report_staging_path']
+        })['copy_file_path']
+
+        host_taxonomy = self.dfu.download_staging_file({
+            'staging_file_subdir_path': params['host_taxonomy_staging_path']
+        })['copy_file_path']
+
+        clusters_txt = None
+        existing_seqs_fa = None
+        if mode == "update":
+            if not params.get('existing_clusters_staging_path') or not params.get('existing_sequences_fasta_staging_path'):
+                raise ValueError("existing_clusters_staging_path and existing_sequences_fasta_staging_path are required for update mode.")
+            clusters_txt = self.dfu.download_staging_file({
+                'staging_file_subdir_path': params['existing_clusters_staging_path']
+            })['copy_file_path']
+            existing_seqs_fa = self.dfu.download_staging_file({
+                'staging_file_subdir_path': params['existing_sequences_fasta_staging_path']
+            })['copy_file_path']
+
+        cmd = [
+            "mob_cluster",
+            "--mode", mode,
+            "-f", plasmids_fa,
+            "-p", mobtyper_report,
+            "-t", host_taxonomy,
+            "--outdir", out_dir
+        ]
+        if mode == "update":
+            cmd += ["-c", clusters_txt, "-r", existing_seqs_fa]
+
+        env = os.environ.copy()
+        if self.mob_db_dir and os.path.isdir(self.mob_db_dir):
+            env["MOB_SUITE_DB"] = self.mob_db_dir
+
+        self._log("Running: " + " ".join(cmd))
+        rc = subprocess.call(cmd, env=env)
+        if rc != 0:
+            raise RuntimeError(f"mob_cluster failed with exit code {rc}")
+
+        out_clusters = os.path.join(out_dir, "clusters.txt")
+        out_updated_fa = os.path.join(out_dir, "updated.fasta")
+
+        zip_path = os.path.join(self.scratch, f"{sample_id}.mob_cluster_outputs.zip")
+        shutil.make_archive(zip_path[:-4], "zip", out_dir)
+
+        html_dir = os.path.join(job_dir, "html")
+        os.makedirs(html_dir, exist_ok=True)
+        html_path = os.path.join(html_dir, "index.html")
+        self._render_cluster_html(out_clusters, html_path, sample_id, mode)
+
+        file_links = [{"path": zip_path, "name": os.path.basename(zip_path), "label": "All outputs (.zip)"}]
+        if os.path.exists(out_clusters):
+            file_links.append({"path": out_clusters, "name": "clusters.txt", "label": "clusters.txt"})
+        if os.path.exists(out_updated_fa):
+            file_links.append({"path": out_updated_fa, "name": "updated.fasta", "label": "updated.fasta"})
+
+        rep = self.kbr.create_extended_report({
+            "message": f"MOB-cluster ({mode}) finished for {sample_id}.",
+            "direct_html_link_index": 0,
+            "html_links": [{"path": html_path, "name": "index.html", "label": "MOB-cluster summary"}],
+            "file_links": file_links,
+            "workspace_name": wsname
+        })
+
+        return [{
+            "report_name": rep['name'],
+            "report_ref": rep['ref']
+        }]
+
+    def _render_cluster_html(self, clusters_txt, html_path, sample_id, mode):
+        table_html = ""
+        if clusters_txt and os.path.exists(clusters_txt):
+            try:
+                df = pd.read_csv(clusters_txt, sep='\t', engine="python")
+                df_preview = df.head(30)
+                table_html = df_preview.to_html(index=False, escape=False)
+            except Exception:
+                table_html = "<p>Could not parse clusters.txt.</p>"
+        else:
+            table_html = "<p>No clusters.txt found.</p>"
+
+        with open(html_path, "w") as w:
+            w.write(f"""
+<html><head><meta charset="utf-8"><title>MOB-cluster: {sample_id}</title></head>
+<body>
+<h2>MOB-cluster ({mode}) — {sample_id}</h2>
+{table_html}
+<p><i>Generated by MOB-suite.</i></p>
+</body></html>
+""")
+
+    def run_mob_recon_batch_app(self, ctx, params):
+        """
+        Run MOB-recon across an AssemblySet and/or list of Assembly refs.
+        Creates a combined HTML + combined TSV, plus a single ZIP containing per-sample outputs.
+        """
+        wsname = params['workspace_name']
+        threads = int(params.get('threads') or 4)
+        emit_plasmid_assembly = str(params.get('emit_plasmid_assembly', '1')) == '1'
+        ufilter = params.get('user_filter_fasta_ref')
+        cgenomes = params.get('closed_genomes_fasta_ref')
+        prefix = params.get('sample_id_prefix') or 'sample'
+
+        # Collect assembly refs
+        asm_refs = []
+        if params.get('assembly_set_ref'):
+            # Try to open as KBaseSets.AssemblySet; be permissive about field names
+            obj = self.ws.get_objects2({'objects': [{'ref': params['assembly_set_ref']}]})['data'][0]
+            data = obj['data']
+            elements = data.get('elements') or data.get('items') or []
+            for el in elements:
+                # elements may be dicts with 'ref' and 'label'; items may be {'ref': ..., 'label': ...}
+                if isinstance(el, dict):
+                    if 'ref' in el:
+                        asm_refs.append(el['ref'])
+                    elif 'ref' in el.get('ref', {}):
+                        asm_refs.append(el['ref']['ref'])
+        if params.get('assembly_refs'):
+            asm_refs.extend(params['assembly_refs'])
+        if not asm_refs:
+            raise ValueError("Provide at least one assembly via assembly_set_ref or assembly_refs.")
+
+        results = []
+        combined_rows = []
+        zip_dir = os.path.join(self.scratch, "mob_recon_batch_zips")
+        os.makedirs(zip_dir, exist_ok=True)
+
+        for i, aref in enumerate(asm_refs, start=1):
+            sample_id = f"{prefix}_{i:03d}"
+            res = self._run_mob_recon_once(
+                wsname, aref, sample_id,
+                user_filter_fasta_ref=ufilter,
+                closed_genomes_fasta_ref=cgenomes,
+                threads=threads,
+                emit_plasmid_assembly=emit_plasmid_assembly
+            )
+            results.append(res)
+            # copy per-sample zip into batch zips folder
+            if os.path.exists(res['zip_path']):
+                dst = os.path.join(zip_dir, os.path.basename(res['zip_path']))
+                shutil.copyfile(res['zip_path'], dst)
+
+            # accumulate combined contig reports
+            if res['contig_report']:
+                try:
+                    df = pd.read_csv(res['contig_report'], sep='\t')
+                    df.insert(0, 'sample_id', res['sample_id'])
+                    combined_rows.append(df)
+                except Exception:
+                    pass
+
+        # Write combined TSV (if any)
+        combined_tsv = None
+        if combined_rows:
+            combined_df = pd.concat(combined_rows, ignore_index=True)
+            combined_tsv = os.path.join(self.scratch, "mob_recon_batch_combined_contig_report.tsv")
+            combined_df.to_csv(combined_tsv, sep='\t', index=False)
+
+        # Make a single batch zip containing all per-sample zips
+        batch_zip_parent = os.path.join(self.scratch, "mob_recon_batch_bundle")
+        os.makedirs(batch_zip_parent, exist_ok=True)
+        batch_zip_path = os.path.join(self.scratch, "mob_recon_batch_outputs.zip")
+        # zip the folder of per-sample zips
+        shutil.make_archive(batch_zip_path[:-4], "zip", zip_dir)
+
+        # HTML summary
+        html_dir = os.path.join(self.scratch, "mob_recon_batch_html")
+        os.makedirs(html_dir, exist_ok=True)
+        html_path = os.path.join(html_dir, "index.html")
+        self._render_batch_html(
+            combined_tsv,
+            [{"sample_id": r['sample_id'],
+              "asm_out_name": r['asm_out_name'],
+              "zip_name": os.path.basename(r['zip_path'])} for r in results],
+            html_path
+        )
+
+        # Build report
+        obj_refs = [r['plasmid_assembly_ref'] for r in results if r['plasmid_assembly_ref']]
+        file_links = [{"path": batch_zip_path, "name": os.path.basename(batch_zip_path), "label": "All per-sample outputs (.zip)"}]
+        if combined_tsv and os.path.exists(combined_tsv):
+            file_links.append({"path": combined_tsv, "name": os.path.basename(combined_tsv), "label": "Combined contig report (.tsv)"})
+
+        rep = self.kbr.create_extended_report({
+            "message": f"MOB-recon (Batch) finished on {len(results)} assemblies.",
+            "direct_html_link_index": 0,
+            "html_links": [{"path": html_path, "name": "index.html", "label": "Batch MOB-recon summary"}],
+            "file_links": file_links,
+            "objects_created": [{"ref": r, "description": "Plasmid-only Assembly"} for r in obj_refs],
+            "workspace_name": wsname
+        })
+
+        return [{
+            "report_name": rep['name'],
+            "report_ref": rep['ref'],
+            "plasmid_assembly_refs": obj_refs
+        }]
+    #END_CLASS_METHODS

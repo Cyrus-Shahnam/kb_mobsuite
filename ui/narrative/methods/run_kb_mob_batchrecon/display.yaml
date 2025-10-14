@@ -1,0 +1,30 @@
+name: MOB-recon (Batch) — MOB-suite
+tooltip: Run MOB-recon across many assemblies and produce a combined summary.
+screenshots: []
+icon: plasmid
+parameters:
+  assembly_set_ref:
+    ui-name: AssemblySet (optional)
+    short-hint: KBaseSets.AssemblySet to process.
+  assembly_refs:
+    ui-name: Assembly list (optional)
+    short-hint: Add one or more Assembly UPAs; combined with AssemblySet if both provided.
+  sample_id_prefix:
+    ui-name: Sample ID prefix
+    short-hint: Used to name per-sample runs (e.g., prefix_001).
+  user_filter_fasta_ref:
+    ui-name: Filter FASTA (optional)
+    short-hint: Sequences to ignore during reconstruction (--filter_db) for all samples.
+  closed_genomes_fasta_ref:
+    ui-name: Closed genomes FASTA (optional)
+    short-hint: Chromosome depletion reference (-g) for all samples.
+  threads:
+    ui-name: Threads
+    short-hint: CPU threads to use.
+  emit_plasmid_assembly:
+    ui-name: Save plasmid-only Assemblies
+    short-hint: Save merged plasmid contigs as new Assembly objects for each sample.
+description: |
+  Batch wrapper for MOB-recon. Accepts an AssemblySet and/or an explicit list of
+  Assembly references. Produces a combined HTML summary, a combined contig_report.tsv,
+  and a single ZIP containing per-sample outputs.

@@ -1,0 +1,98 @@
+{
+  "ver": "1.1",
+  "authors": ["ac.shahnam"],
+  "contact": "you@example.com",
+  "categories": ["active"],
+  "widgets": {
+    "input": null,
+    "output": null
+  },
+  "parameters": [
+    {
+      "id": "assembly_set_ref",
+      "optional": true,
+      "advanced": false,
+      "allow_multiple": false,
+      "default_values": [""],
+      "field_type": "text",
+      "text_options": {
+        "valid_ws_types": ["KBaseSets.AssemblySet"]
+      }
+    },
+    {
+      "id": "assembly_refs",
+      "optional": true,
+      "advanced": false,
+      "allow_multiple": true,
+      "default_values": [""],
+      "field_type": "text",
+      "text_options": {
+        "valid_ws_types": ["KBaseAssembly.Assembly"]
+      }
+    },
+    {
+      "id": "sample_id_prefix",
+      "optional": true,
+      "advanced": false,
+      "allow_multiple": false,
+      "default_values": ["sample"],
+      "field_type": "text",
+      "text_options": { "validate_as": "string" }
+    },
+    {
+      "id": "user_filter_fasta_ref",
+      "optional": true,
+      "advanced": true,
+      "allow_multiple": false,
+      "default_values": [""],
+      "field_type": "text",
+      "text_options": { "valid_ws_types": ["KBaseAssembly.Assembly"] }
+    },
+    {
+      "id": "closed_genomes_fasta_ref",
+      "optional": true,
+      "advanced": true,
+      "allow_multiple": false,
+      "default_values": [""],
+      "field_type": "text",
+      "text_options": { "valid_ws_types": ["KBaseAssembly.Assembly"] }
+    },
+    {
+      "id": "threads",
+      "optional": true,
+      "advanced": true,
+      "allow_multiple": false,
+      "default_values": ["4"],
+      "field_type": "text",
+      "text_options": { "validate_as": "int", "min_int": 1, "max_int": 128 }
+    },
+    {
+      "id": "emit_plasmid_assembly",
+      "optional": true,
+      "advanced": false,
+      "allow_multiple": false,
+      "default_values": ["1"],
+      "field_type": "checkbox",
+      "checkbox_options": { "checked_value": "1", "unchecked_value": "0" }
+    }
+  ],
+  "behavior": {
+    "service-mapping": {
+      "url": "",
+      "name": "kb_mobsuite",
+      "method": "run_mob_recon_batch_app",
+      "input_mapping": [
+        { "narrative_system_variable": "workspace", "target_property": "workspace_name", "target_argument_position": 0 },
+        { "input_parameter": "assembly_set_ref", "target_property": "assembly_set_ref", "target_argument_position": 0, "target_type_transform": "ref" },
+        { "input_parameter": "assembly_refs", "target_property": "assembly_refs", "target_argument_position": 0, "target_type_transform": "list<ref>" },
+        { "input_parameter": "sample_id_prefix", "target_property": "sample_id_prefix", "target_argument_position": 0 },
+        { "input_parameter": "user_filter_fasta_ref", "target_property": "user_filter_fasta_ref", "target_argument_position": 0, "target_type_transform": "ref" },
+        { "input_parameter": "closed_genomes_fasta_ref", "target_property": "closed_genomes_fasta_ref", "target_argument_position": 0, "target_type_transform": "ref" },
+        { "input_parameter": "threads", "target_property": "threads", "target_argument_position": 0, "target_type_transform": "int" },
+        { "input_parameter": "emit_plasmid_assembly", "target_property": "emit_plasmid_assembly", "target_argument_position": 0, "target_type_transform": "int" }
+      ],
+      "output_mapping": []
+    }
+  },
+  "job_id_output_field": "docker"
+}

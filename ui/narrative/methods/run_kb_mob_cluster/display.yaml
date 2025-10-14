@@ -1,0 +1,30 @@
+name: MOB-cluster (MOB-suite)
+tooltip: Build or update plasmid clusters using Mash distances with complete linkage.
+screenshots: []
+icon: plasmid
+parameters:
+  mode:
+    ui-name: Mode
+    short-hint: Build a new DB or update an existing one.
+  plasmids_assembly_ref:
+    ui-name: Closed plasmids FASTA (Assembly)
+    short-hint: Assembly containing closed plasmid sequences.
+  mobtyper_report_staging_path:
+    ui-name: MOB-typer report (staging path)
+    short-hint: Path to *_mobtyper_results.txt in staging.
+  host_taxonomy_staging_path:
+    ui-name: Host taxonomy TSV (staging path)
+    short-hint: Path to host taxonomy file in staging.
+  existing_clusters_staging_path:
+    ui-name: Existing clusters.txt (update mode)
+    short-hint: Required in update mode.
+  existing_sequences_fasta_staging_path:
+    ui-name: Existing sequences FASTA (update mode)
+    short-hint: Required in update mode.
+  sample_id:
+    ui-name: Sample ID (optional)
+    short-hint: Used only for labeling outputs.
+description: |
+  MOB-cluster assigns primary/secondary cluster IDs to plasmids. Use **Build**
+  to create a database from closed plasmids, or **Update** to append to an
+  existing database with prior clusters and sequences.

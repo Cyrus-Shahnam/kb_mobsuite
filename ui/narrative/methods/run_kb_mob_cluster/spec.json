@@ -1,0 +1,101 @@
+{
+  "ver": "1.1",
+  "authors": ["ac.shahnam"],
+  "contact": "you@example.com",
+  "categories": ["active"],
+  "widgets": {
+    "input": null,
+    "output": null
+  },
+  "parameters": [
+    {
+      "id": "mode",
+      "optional": false,
+      "advanced": false,
+      "allow_multiple": false,
+      "default_values": ["build"],
+      "field_type": "dropdown",
+      "dropdown_options": {
+        "options": [
+          { "value": "build", "display": "Build new database" },
+          { "value": "update", "display": "Update existing database" }
+        ]
+      }
+    },
+    {
+      "id": "plasmids_assembly_ref",
+      "optional": false,
+      "advanced": false,
+      "allow_multiple": false,
+      "default_values": [""],
+      "field_type": "text",
+      "text_options": {
+        "valid_ws_types": ["KBaseAssembly.Assembly"]
+      }
+    },
+    {
+      "id": "mobtyper_report_staging_path",
+      "optional": false,
+      "advanced": false,
+      "allow_multiple": false,
+      "default_values": [""],
+      "field_type": "text",
+      "text_options": { "validate_as": "string" }
+    },
+    {
+      "id": "host_taxonomy_staging_path",
+      "optional": false,
+      "advanced": false,
+      "allow_multiple": false,
+      "default_values": [""],
+      "field_type": "text",
+      "text_options": { "validate_as": "string" }
+    },
+    {
+      "id": "existing_clusters_staging_path",
+      "optional": true,
+      "advanced": true,
+      "allow_multiple": false,
+      "default_values": [""],
+      "field_type": "text",
+      "text_options": { "validate_as": "string" }
+    },
+    {
+      "id": "existing_sequences_fasta_staging_path",
+      "optional": true,
+      "advanced": true,
+      "allow_multiple": false,
+      "default_values": [""],
+      "field_type": "text",
+      "text_options": { "validate_as": "string" }
+    },
+    {
+      "id": "sample_id",
+      "optional": true,
+      "advanced": false,
+      "allow_multiple": false,
+      "default_values": [""],
+      "field_type": "text",
+      "text_options": { "validate_as": "string" }
+    }
+  ],
+  "behavior": {
+    "service-mapping": {
+      "url": "",
+      "name": "kb_mobsuite",
+      "method": "run_mob_cluster_app",
+      "input_mapping": [
+        { "narrative_system_variable": "workspace", "target_property": "workspace_name", "target_argument_position": 0 },
+        { "input_parameter": "mode", "target_property": "mode", "target_argument_position": 0 },
+        { "input_parameter": "plasmids_assembly_ref", "target_property": "plasmids_assembly_ref", "target_argument_position": 0, "target_type_transform": "ref" },
+        { "input_parameter": "mobtyper_report_staging_path", "target_property": "mobtyper_report_staging_path", "target_argument_position": 0 },
+        { "input_parameter": "host_taxonomy_staging_path", "target_property": "host_taxonomy_staging_path", "target_argument_position": 0 },
+        { "input_parameter": "existing_clusters_staging_path", "target_property": "existing_clusters_staging_path", "target_argument_position": 0 },
+        { "input_parameter": "existing_sequences_fasta_staging_path", "target_property": "existing_sequences_fasta_staging_path", "target_argument_position": 0 },
+        { "input_parameter": "sample_id", "target_property": "sample_id", "target_argument_position": 0 }
+      ],
+      "output_mapping": []
+    }
+  },
+  "job_id_output_field": "docker"
+}
