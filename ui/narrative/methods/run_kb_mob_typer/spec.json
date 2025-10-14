@@ -3,28 +3,22 @@
   "authors": ["ac.shahnam"],
   "contact": "you@example.com",
   "categories": ["active"],
-  "widgets": {
-    "input": null,
-    "output": null
-  },
+  "widgets": { "input": null, "output": null },
   "parameters": [
     {
       "id": "fasta_ref",
       "optional": false,
       "advanced": false,
       "allow_multiple": false,
-      "default_values": [""],
+      "is_workspace_id": true,
       "field_type": "text",
-      "text_options": {
-        "valid_ws_types": ["KBaseAssembly.Assembly"]
-      }
+      "text_options": { "valid_ws_types": ["KBaseAssembly.Assembly"] }
     },
     {
       "id": "sample_id",
       "optional": true,
       "advanced": false,
       "allow_multiple": false,
-      "default_values": [""],
       "field_type": "text",
       "text_options": { "validate_as": "string" }
     },
@@ -35,10 +29,7 @@
       "allow_multiple": false,
       "default_values": ["0"],
       "field_type": "checkbox",
-      "checkbox_options": {
-        "checked_value": "1",
-        "unchecked_value": "0"
-      }
+      "checkbox_options": { "checked_value": "1", "unchecked_value": "0" }
     },
     {
       "id": "threads",
@@ -47,11 +38,7 @@
       "allow_multiple": false,
       "default_values": ["4"],
       "field_type": "text",
-      "text_options": {
-        "validate_as": "int",
-        "min_int": 1,
-        "max_int": 128
-      }
+      "text_options": { "validate_as": "int", "min_int": 1, "max_int": 128 }
     },
     {
       "id": "emit_mge_report",
@@ -60,10 +47,7 @@
       "allow_multiple": false,
       "default_values": ["0"],
       "field_type": "checkbox",
-      "checkbox_options": {
-        "checked_value": "1",
-        "unchecked_value": "0"
-      }
+      "checkbox_options": { "checked_value": "1", "unchecked_value": "0" }
     }
   ],
   "behavior": {

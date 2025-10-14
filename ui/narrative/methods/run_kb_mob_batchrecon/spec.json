@@ -3,32 +3,25 @@
   "authors": ["ac.shahnam"],
   "contact": "you@example.com",
   "categories": ["active"],
-  "widgets": {
-    "input": null,
-    "output": null
-  },
+  "widgets": { "input": null, "output": null },
   "parameters": [
     {
       "id": "assembly_set_ref",
       "optional": true,
       "advanced": false,
       "allow_multiple": false,
-      "default_values": [""],
+      "is_workspace_id": true,
       "field_type": "text",
-      "text_options": {
-        "valid_ws_types": ["KBaseSets.AssemblySet"]
-      }
+      "text_options": { "valid_ws_types": ["KBaseSets.AssemblySet"] }
     },
     {
       "id": "assembly_refs",
       "optional": true,
       "advanced": false,
       "allow_multiple": true,
-      "default_values": [""],
+      "is_workspace_id": true,
       "field_type": "text",
-      "text_options": {
-        "valid_ws_types": ["KBaseAssembly.Assembly"]
-      }
+      "text_options": { "valid_ws_types": ["KBaseAssembly.Assembly"] }
     },
     {
       "id": "sample_id_prefix",
@@ -44,7 +37,7 @@
       "optional": true,
       "advanced": true,
       "allow_multiple": false,
-      "default_values": [""],
+      "is_workspace_id": true,
       "field_type": "text",
       "text_options": { "valid_ws_types": ["KBaseAssembly.Assembly"] }
     },
@@ -53,7 +46,7 @@
       "optional": true,
       "advanced": true,
       "allow_multiple": false,
-      "default_values": [""],
+      "is_workspace_id": true,
       "field_type": "text",
       "text_options": { "valid_ws_types": ["KBaseAssembly.Assembly"] }
     },
