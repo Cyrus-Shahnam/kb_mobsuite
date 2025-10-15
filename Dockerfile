@@ -41,6 +41,8 @@ RUN mkdir -p "${MOB_DB_DIR}"
 WORKDIR /kb/module
 COPY . /kb/module
 
+RUN chmod +x /kb/module/bin/*.sh /kb/module/scripts/*.sh || true
+
 # Python runtime niceties
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
