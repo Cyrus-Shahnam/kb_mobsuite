@@ -41,7 +41,9 @@ RUN mkdir -p "${MOB_DB_DIR}"
 WORKDIR /kb/module
 COPY . /kb/module
 
+# Ensure launchers are executable and Python can import the module
 RUN chmod +x /kb/module/bin/*.sh /kb/module/scripts/*.sh || true
+ENV PYTHONPATH=/kb/module/lib:$PYTHONPATH
 
 # Python runtime niceties
 ENV PYTHONDONTWRITEBYTECODE=1
