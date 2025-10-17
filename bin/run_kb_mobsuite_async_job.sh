@@ -1,12 +1,15 @@
 #!/bin/bash
-set -euo pipefail
+# Minimal module-specific async launcher (matches kb_blast style)
 
-# Tell the async runner our module name (belt + suspenders)
-export KB_SDK_MODULE_NAME="kb_mobsuite"
-export SDK_MODULE_NAME="kb_mobsuite"
+set -e
 
-# Ensure both module code and KBase-installed clients are importable
-export PYTHONPATH="/kb/module/lib:/kb/deployment/lib:${PYTHONPATH:-}"
+script_dir="$(dirname "$(readlink -f "$0")")"
 
-# Hand off to the standard SDK async runner
-exec /kb/deployment/bin/run_async_job.sh --sdk-module-name kb_mobsuite "$@"
+# Make sure our module and the KBase-installed clients are importable
+# - ../lib: your module code (kb_mobsuite/)
+# - /kb/deployment/lib: installed_clients/*
+export PYTHONPATH="${script_dir}/../lib:/kb/deployment/lib:${PYTHONPATH:-}"
+
+# Hand control to the generated server
+# Pass through all args from the platform
+exec python -u "${script_dir}/../lib/kb_mobsuite/kb_mobsuiteServer.py" "$@"
