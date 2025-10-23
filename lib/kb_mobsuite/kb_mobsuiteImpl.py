@@ -36,6 +36,17 @@ class kb_mobsuite:
     def _log(self, msg):
         print(f"[kb_mobsuite] {msg}")
 
+    def _as_ref(self, ret):
+        """Coerce AssemblyUtil.save_assembly_from_fasta return into a ref string."""
+        if isinstance(ret, str):
+            return ret
+        if isinstance(ret, dict):
+            for k in ('assembly_ref', 'ref', 'obj_ref', 'output_ref'):
+                v = ret.get(k)
+                if v:
+                    return v
+        raise ValueError(f"Unexpected result from AssemblyUtil.save_assembly_from_fasta: {ret!r}")
+
     # ---------------- internal helpers ----------------
     def _run_mob_recon_once(self, wsname, asm_ref, sample_id,
                              user_filter_fasta_ref=None,
@@ -110,7 +121,7 @@ class kb_mobsuite:
                 'workspace_name': wsname,
                 'assembly_name': asm_out_name
             })
-            obj_ref = aret['assembly_ref']
+            obj_ref = self._as_ref(aret)
 
         zip_path = os.path.join(self.scratch, f"{sample_id}.mob_recon_outputs.zip")
         shutil.make_archive(zip_path[:-4], "zip", out_dir)
