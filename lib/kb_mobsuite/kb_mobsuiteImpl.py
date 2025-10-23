@@ -381,19 +381,35 @@ class kb_mobsuite:
         if rc != 0:
             raise RuntimeError(f"mob_typer failed with exit code {rc}")
 
+        # Package all outputs for convenience
         zip_path = os.path.join(self.scratch, f"{sample_id}.mob_typer_outputs.zip")
         shutil.make_archive(zip_path[:-4], "zip", out_dir)
 
+        # Build simple HTML summary
         html_dir = os.path.join(job_dir, "html")
         os.makedirs(html_dir, exist_ok=True)
         html_path = os.path.join(html_dir, "index.html")
         self._render_typer_html(results_txt, html_path, sample_id)
 
+        # Report: include direct downloads (TSV + ZIP)
+        file_links = []
+        if os.path.exists(results_txt) and os.path.getsize(results_txt) > 0:
+            file_links.append({
+                "path": results_txt,
+                "name": os.path.basename(results_txt),
+                "label": "MOB-typer results (TSV)"
+            })
+        file_links.append({
+            "path": zip_path,
+            "name": os.path.basename(zip_path),
+            "label": "All outputs (.zip)"
+        })
+
         rep = self.kbr.create_extended_report({
             "message": f"MOB-typer finished for {sample_id}.",
             "direct_html_link_index": 0,
             "html_links": [{"path": html_path, "name": "index.html", "label": "MOB-typer summary"}],
-            "file_links": [{"path": zip_path, "name": os.path.basename(zip_path), "label": "All outputs (.zip)"}],
+            "file_links": file_links,
             "workspace_name": wsname
         })
 

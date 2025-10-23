@@ -68,6 +68,15 @@ module kb_mobsuite {
         AssemblyRefList plasmid_assembly_refs;
     } MOBReconBatchResult;
 
+    /* -------- NEW: data object type for MOB-typer TSV -------- */
+    typedef structure {
+        string sample_id;
+        string description;
+        string file_name;
+        string shock_id;
+        string handle_id;
+    } MOBTyperResults;
+
     funcdef run_mob_recon_app(MOBReconParams params) returns (MOBReconResult);
     funcdef run_mob_typer_app(MOBTyperParams params) returns (MOBTyperResult);
     funcdef run_mob_cluster_app(MOBClusterParams params) returns (MOBClusterResult);
