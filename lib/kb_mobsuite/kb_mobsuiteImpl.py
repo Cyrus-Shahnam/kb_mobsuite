@@ -47,8 +47,13 @@ class kb_mobsuite:
         Returns a dict with keys:
          - sample_id, out_dir, zip_path, contig_report, asm_out_name (maybe None), plasmid_assembly_ref (maybe None)
         """
+        import os, shutil, glob
+
         job_dir = os.path.join(self.scratch, f"mob_recon_{sample_id}")
         out_dir = os.path.join(job_dir, "mob_recon_output")
+        # Ensure a clean output directory for each run
+        if os.path.isdir(out_dir):
+            shutil.rmtree(out_dir, ignore_errors=True)
         os.makedirs(out_dir, exist_ok=True)
 
         # 1) Download input assembly to FASTA
@@ -63,11 +68,12 @@ class kb_mobsuite:
         if closed_genomes_fasta_ref:
             closed_genomes = self.au.get_assembly_as_fasta({'ref': closed_genomes_fasta_ref})['path']
 
-        # 2) Compose command
+        # 2) Compose command (allow overwrite on reruns)
         cmd = [
             "mob_recon",
             "--infile", asm_fasta,
-            "--outdir", out_dir
+            "--outdir", out_dir,
+            "--force"
         ]
         if user_filter:
             cmd += ["--filter_db", user_filter]
@@ -84,7 +90,7 @@ class kb_mobsuite:
         if rc != 0:
             raise RuntimeError(f"mob_recon failed with exit code {rc}")
 
-        # 3) Merge plasmid_*.fasta ??? <sample>.plasmids.fasta if present
+        # 3) Merge plasmid_*.fasta → <sample>.plasmids.fasta if present
         plasmid_fastas = sorted(glob.glob(os.path.join(out_dir, "plasmid_*.fasta")))
         merged_plasmids = None
         if plasmid_fastas:
@@ -335,6 +341,9 @@ class kb_mobsuite:
 
         job_dir = os.path.join(self.scratch, f"mob_typer_{sample_id}")
         out_dir = os.path.join(job_dir, "mob_typer_output")
+        # Ensure a clean output directory for each run
+        if os.path.isdir(out_dir):
+            shutil.rmtree(out_dir, ignore_errors=True)
         os.makedirs(out_dir, exist_ok=True)
 
         fasta = self.au.get_assembly_as_fasta({'ref': fasta_ref})['path']
@@ -414,6 +423,9 @@ class kb_mobsuite:
         sample_id = params.get('sample_id') or 'dataset'
         job_dir = os.path.join(self.scratch, f"mob_cluster_{sample_id}")
         out_dir = os.path.join(job_dir, "mob_cluster_output")
+        # Ensure a clean output directory for each run
+        if os.path.isdir(out_dir):
+            shutil.rmtree(out_dir, ignore_errors=True)
         os.makedirs(out_dir, exist_ok=True)
 
         plasmids_fa = self.au.get_assembly_as_fasta({'ref': params['plasmids_assembly_ref']})['path']
