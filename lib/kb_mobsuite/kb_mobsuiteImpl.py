@@ -381,19 +381,51 @@ class kb_mobsuite:
         if rc != 0:
             raise RuntimeError(f"mob_typer failed with exit code {rc}")
 
+        # Make a convenience zip of all outputs
         zip_path = os.path.join(self.scratch, f"{sample_id}.mob_typer_outputs.zip")
         shutil.make_archive(zip_path[:-4], "zip", out_dir)
 
+        # ------------ save the results TSV as a WS data object ------------
+        ws_id = self.dfu.ws_name_to_id(wsname)
+        up = self.dfu.file_to_shock({'file_path': results_txt, 'make_handle': 1})
+        obj_name = f"{sample_id}.MOBTyper.results"
+
+        saved = self.dfu.save_objects({
+            'id': ws_id,
+            'objects': [{
+                # omit explicit -X.Y so Workspace uses the current compiled type version
+                'type': 'kb_mobsuite.MOBTyperResults',
+                'name': obj_name,
+                'data': {
+                    'sample_id': sample_id,
+                    'description': 'MOB-typer results (tab-delimited)',
+                    'file_name': os.path.basename(results_txt),
+                    'shock_id': up['shock_id'],
+                    'handle_id': up['handle']['hid']
+                }
+            }]
+        })[0]  # object_info tuple
+
+        mobtyper_obj_ref = f"{saved[6]}/{saved[0]}/{saved[4]}"
+
+        # HTML summary
         html_dir = os.path.join(job_dir, "html")
         os.makedirs(html_dir, exist_ok=True)
         html_path = os.path.join(html_dir, "index.html")
         self._render_typer_html(results_txt, html_path, sample_id)
 
+        # Include both TSV and ZIP as file links
+        file_links = [
+            {"path": results_txt, "name": os.path.basename(results_txt), "label": "MOB-typer results (TSV)"},
+            {"path": zip_path, "name": os.path.basename(zip_path), "label": "All outputs (.zip)"}
+        ]
+
         rep = self.kbr.create_extended_report({
             "message": f"MOB-typer finished for {sample_id}.",
             "direct_html_link_index": 0,
             "html_links": [{"path": html_path, "name": "index.html", "label": "MOB-typer summary"}],
-            "file_links": [{"path": zip_path, "name": os.path.basename(zip_path), "label": "All outputs (.zip)"}],
+            "file_links": file_links,
+            "objects_created": [{"ref": mobtyper_obj_ref, "description": "MOB-typer results (TSV)"}],
             "workspace_name": wsname
         })
 
